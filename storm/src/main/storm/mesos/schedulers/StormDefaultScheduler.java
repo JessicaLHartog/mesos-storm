@@ -17,8 +17,10 @@
  */
 package storm.mesos.schedulers;
 
+import com.google.common.base.Optional;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.mesos.Protos;
+import org.apache.mesos.SchedulerDriver;
 import org.apache.storm.scheduler.Cluster;
 import org.apache.storm.scheduler.ExecutorDetails;
 import org.apache.storm.scheduler.IScheduler;
@@ -32,7 +34,6 @@ import org.slf4j.LoggerFactory;
 import storm.mesos.resources.AggregatedOffers;
 import storm.mesos.resources.ResourceNotAvailableException;
 import storm.mesos.util.MesosCommon;
-import storm.mesos.util.RotatingMap;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -48,14 +49,31 @@ import java.util.Set;
 /**
  *  Default Scheduler used by mesos-storm framework.
  */
-public class DefaultScheduler implements IScheduler, IMesosStormScheduler {
-  private final Logger log = LoggerFactory.getLogger(DefaultScheduler.class);
+public class StormDefaultScheduler implements IScheduler, IMesosStormScheduler {
+  public static final String CONF_MESOS_OFFER_FILTER_SECONDS = "mesos.offer.filter.seconds";
+  private final Logger log = LoggerFactory.getLogger(StormDefaultScheduler.class);
   private Map mesosStormConf;
   private final Map<String, MesosWorkerSlot> mesosWorkerSlotMap = new HashMap<>();
+  private Number filterSeconds;
+  private Protos.Filters filters;
+  private volatile boolean offersSuppressed = false;
+  private volatile SchedulerDriver driver;
 
   @Override
   public void prepare(Map conf) {
     mesosStormConf = conf;
+    filterSeconds = Optional.fromNullable((Number) mesosStormConf.get(CONF_MESOS_OFFER_FILTER_SECONDS)).or(120);
+    filters = Protos.Filters.newBuilder()
+          .setRefuseSeconds(filterSeconds.intValue())
+          .build();
+  }
+
+  private StormDefaultScheduler() {
+    // This disallows constructing this StormDefaultScheduler without a driver at compile time
+  }
+
+  public StormDefaultScheduler(final SchedulerDriver driver) {
+    this.driver = driver;
   }
 
   private List<MesosWorkerSlot> getMesosWorkerSlots(Map<String, AggregatedOffers> aggregatedOffersPerNode,
@@ -134,13 +152,30 @@ public class DefaultScheduler implements IScheduler, IMesosStormScheduler {
    *    passes a recreated version of WorkerSlot to schedule method instead of passing the WorkerSlot returned by this method as is.
     */
   @Override
-  public List<WorkerSlot> allSlotsAvailableForScheduling(RotatingMap<Protos.OfferID, Protos.Offer> offers,
+  public List<WorkerSlot> allSlotsAvailableForScheduling(Map<Protos.OfferID, Protos.Offer> offers,
                                                          Collection<SupervisorDetails> existingSupervisors,
                                                          Topologies topologies, Set<String> topologiesMissingAssignments) {
     if (topologiesMissingAssignments.isEmpty()) {
       log.info("Declining all offers that are currently buffered because no topologies need assignments");
-      // TODO(ksoundararaj): Do we need to clear offers not that consolidate resources?
+      for (Protos.OfferID offerId : offers.keySet()) {
+        driver.declineOffer(offerId, filters);
+      }
       offers.clear();
+      // Since we don't have any topologies that need assignments, we will suppress Offers from Mesos as we do not need more
+      if (!offersSuppressed) {
+        driver.suppressOffers();
+        offersSuppressed = true;
+      }
+      return new ArrayList<>();
+    }
+
+    if (offers.isEmpty()) {
+      if (offersSuppressed) {
+        // Since we had previously suppressed Offers, and we now have topologies needing assignment, we will revive Offers from Mesos
+        driver.reviveOffers();
+        offersSuppressed = false;
+      }
+      // Note: We still have the offersLock at this point, so we return the empty ArrayList so that we can release the lock and acquire new offers
       return new ArrayList<>();
     }
 

@@ -25,9 +25,10 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.runners.MockitoJUnitRunner;
 import storm.mesos.util.MesosCommon;
-import storm.mesos.util.RotatingMap;
 
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Collection;
 
 import static org.junit.Assert.assertEquals;
@@ -36,17 +37,17 @@ import static storm.mesos.TestUtils.buildOffer;
 @RunWith(MockitoJUnitRunner.class)
 public class SchedulerUtilsTest {
 
-  RotatingMap<OfferID, Offer> rotatingMap;
+  Map<OfferID, Offer> map;
   private final String sampleHost = "host1.east";
 
   @Before
   public void initialize() {
-    rotatingMap = new RotatingMap<>(2);
+    map = new HashMap<OfferID, Offer>();
   }
 
-  private void buildOfferAndUpdateRotatingMap(String offerId, String hostName, double cpus, double memory) {
+  private void buildOfferAndUpdateMap(String offerId, String hostName, double cpus, double memory) {
     Offer offer = buildOffer(offerId, hostName, cpus, memory);
-    rotatingMap.put(offer.getId(), offer);
+    map.put(offer.getId(), offer);
   }
 
   @Test
