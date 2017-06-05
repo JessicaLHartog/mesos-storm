@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class MesosSupervisor implements ISupervisor {
   public static final Logger LOG = LoggerFactory.getLogger(MesosSupervisor.class);
+  static final int SUICIDE_POLL_TIME = 5000;
 
   volatile String _executorId = null;
   volatile String _supervisorId = null;
@@ -261,7 +262,7 @@ public class MesosSupervisor implements ISupervisor {
             LOG.info("Supervisor has not had anything assigned for {} secs. Committing suicide...", _timeoutSecs);
             Runtime.getRuntime().halt(0);
           }
-          Utils.sleep(5000);
+          Utils.sleep(SUICIDE_POLL_TIME);
         }
       } catch (Throwable t) {
         LOG.error(t.getMessage());
