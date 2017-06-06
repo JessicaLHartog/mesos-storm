@@ -50,22 +50,15 @@ import java.util.Set;
  *  Default Scheduler used by mesos-storm framework.
  */
 public class StormDefaultScheduler implements IScheduler, IMesosStormScheduler {
-  public static final String CONF_MESOS_OFFER_FILTER_SECONDS = "mesos.offer.filter.seconds";
   private final Logger log = LoggerFactory.getLogger(StormDefaultScheduler.class);
   private Map mesosStormConf;
   private final Map<String, MesosWorkerSlot> mesosWorkerSlotMap = new HashMap<>();
-  private Number filterSeconds;
-  private Protos.Filters filters;
   private volatile boolean offersSuppressed = false;
   private volatile SchedulerDriver driver;
 
   @Override
   public void prepare(Map conf) {
     mesosStormConf = conf;
-    filterSeconds = Optional.fromNullable((Number) mesosStormConf.get(CONF_MESOS_OFFER_FILTER_SECONDS)).or(120);
-    filters = Protos.Filters.newBuilder()
-          .setRefuseSeconds(filterSeconds.intValue())
-          .build();
   }
 
   private StormDefaultScheduler() {
@@ -158,7 +151,7 @@ public class StormDefaultScheduler implements IScheduler, IMesosStormScheduler {
     if (topologiesMissingAssignments.isEmpty()) {
       log.info("Declining all offers that are currently buffered because no topologies need assignments");
       for (Protos.OfferID offerId : offers.keySet()) {
-        driver.declineOffer(offerId, filters);
+        driver.declineOffer(offerId);
       }
       offers.clear();
       // Since we don't have any topologies that need assignments, we will suppress Offers from Mesos as we do not need more

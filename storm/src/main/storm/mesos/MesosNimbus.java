@@ -101,7 +101,6 @@ public class MesosNimbus implements INimbus {
   public static final String CONF_MESOS_SECRET_FILE = "mesos.framework.secret.file";
 
   public static final String CONF_MESOS_CHECKPOINT = "mesos.framework.checkpoint";
-  public static final String CONF_MESOS_OFFER_FILTER_SECONDS = "mesos.offer.filter.seconds";
   public static final String CONF_MESOS_LOCAL_FILE_SERVER_PORT = "mesos.local.file.server.port";
   public static final String CONF_MESOS_FRAMEWORK_NAME = "mesos.framework.name";
   public static final String CONF_MESOS_FRAMEWORK_USER = "mesos.framework.user";
@@ -243,10 +242,6 @@ public class MesosNimbus implements INimbus {
     _driver = driver;
     _mesosStormScheduler = new StormDefaultScheduler(driver);
     _state.put(FRAMEWORK_ID, id.getValue());
-    Number filterSeconds = Optional.fromNullable((Number) mesosStormConf.get(CONF_MESOS_OFFER_FILTER_SECONDS)).or(120);
-    final Protos.Filters filters = Protos.Filters.newBuilder()
-        .setRefuseSeconds(filterSeconds.intValue())
-        .build();
     _offers = new HashMap<Protos.OfferID, Protos.Offer>();
   }
 
